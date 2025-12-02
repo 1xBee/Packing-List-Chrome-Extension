@@ -1,7 +1,6 @@
 /**
- * Print Override Script
- * Runs at document_start to intercept print calls before page loads
- * This is the ONLY code that runs before the page loads - keep it minimal!
+ * Print Override Script (runs in page context)
+ * Intercepts window.print() calls and listens for trigger from content script
  */
 
 (function() {
@@ -17,10 +16,28 @@
   window.print = function() {
     console.log('🖨️ Print intercepted - will trigger after packing lists load');
     window._printWasCalled = true;
+    
+    // Post message to content script
+    window.postMessage({
+      source: 'packing-list-extension',
+      type: 'print-intercepted'
+    }, '*');
   };
 
-  // Initialize cache for packing list data (Bug 1 mitigation)
-  window._packingListCache = null;
+  // Listen for trigger from content script
+  window.addEventListener('message', (event) => {
+    if (!event || event.source !== window) return;
+    const msg = event.data;
+    
+    if (msg && msg.source === 'packing-list-extension' && msg.type === 'trigger-print') {
+      console.log('🖨️ Triggering actual print now');
+      
+      // Small delay to ensure everything is rendered
+      setTimeout(() => {
+        window._originalPrint();
+      }, 100);
+    }
+  });
 
-  console.log('✅ Print override installed');
+  console.log('✅ Print override installed in page context');
 })();

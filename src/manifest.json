@@ -17,7 +17,7 @@
   "content_scripts": [
     {
       "matches": ["https://cm.chasunamallny.com/Deliveries/*/Invoice*"],
-      "js": ["print-override.js"],
+      "js": ["content-early.js"],
       "run_at": "document_start"
     },
     {
@@ -33,7 +33,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["inpage-api-interceptor.js"],
+      "resources": ["inpage-api-interceptor.js", "print-override.js"],
       "matches": ["<all_urls>"]
     }
   ],

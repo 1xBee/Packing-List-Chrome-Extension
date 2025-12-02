@@ -34,26 +34,35 @@ async function build() {
   try {
     console.log('🔨 Building extension...');
 
-    // Build content scripts
+    // Build early content script (runs at document_start)
+    await esbuild.build({
+      ...buildConfig,
+      entryPoints: ['src/content/content-early.js'],
+      outfile: 'dist/content-early.js',
+    });
+
+    // Build print override (injected into page context)
     await esbuild.build({
       ...buildConfig,
       entryPoints: ['src/content/print-override.js'],
       outfile: 'dist/print-override.js',
     });
 
+    // Build main content script (runs at document_idle)
     await esbuild.build({
       ...buildConfig,
       entryPoints: ['src/content/main.js'],
       outfile: 'dist/content-main.js',
     });
 
+    // Build API interceptor helper (for content script)
     await esbuild.build({
       ...buildConfig,
       entryPoints: ['src/content/api-interceptor.js'],
       outfile: 'dist/api-interceptor.js',
     });
 
-    // Build in-page interceptor (runs in page context via injected script)
+    // Build in-page API interceptor (injected into page context)
     await esbuild.build({
       ...buildConfig,
       entryPoints: ['src/content/inpage-api-interceptor.js'],
@@ -61,13 +70,6 @@ async function build() {
     });
 
     // Build background service worker
-    await esbuild.build({
-      ...buildConfig,
-      entryPoints: ['src/background/service-worker.js'],
-      outfile: 'dist/service-worker.js',
-    });
-
-    // After building service-worker, replace env variables
     await esbuild.build({
       ...buildConfig,
       entryPoints: ['src/background/service-worker.js'],

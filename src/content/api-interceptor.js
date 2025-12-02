@@ -1,24 +1,44 @@
 /**
- * API Interceptor
- * Intercepts the delivery API call to extract furniture items as a "phonebook"
+ * API Interceptor (Content Script Side)
+ * Reads delivery data cached by early content script
  */
 
 let deliveryData = null;
 
 /**
- * Get the cached delivery data
+ * Get the cached delivery data from sessionStorage
  * @returns {Object|null} Delivery data with furniture items
  */
 export function getDeliveryData() {
-  return deliveryData;
+  if (deliveryData) {
+    return deliveryData;
+  }
+
+  // Try to read from sessionStorage
+  try {
+    const cached = sessionStorage.getItem('_packingList_deliveryData');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      deliveryData = processDeliveryResponse(parsed.url, parsed.data);
+      console.log('✅ Loaded delivery data from session cache');
+      return deliveryData;
+    }
+  } catch (e) {
+    console.warn('⚠️ Could not read cached delivery data:', e);
+  }
+
+  return null;
 }
 
 /**
- * Internal: process delivery API JSON payload and cache furniture items
+ * Process delivery API JSON payload and extract furniture items
+ * @param {string} url - API URL
+ * @param {Object} data - API response data
+ * @returns {Object|null} Processed delivery data
  */
 function processDeliveryResponse(url, data) {
   try {
-    if (!data) return;
+    if (!data) return null;
 
     // Filter furniture items with qty > 0
     if (data.items && Array.isArray(data.items)) {
@@ -28,8 +48,7 @@ function processDeliveryResponse(url, data) {
         return isFurniture && hasQty;
       });
 
-      // Store filtered data
-      deliveryData = {
+      const result = {
         items: furnitureItems.map(item => ({
           name: item.name,
           id: item.id,
@@ -38,51 +57,14 @@ function processDeliveryResponse(url, data) {
         deliveryId: extractDeliveryId(url)
       };
 
-      console.log(`✅ Cached ${furnitureItems.length} furniture items from delivery API`);
-      console.log('📋 Delivery data:', deliveryData);
+      console.log(`✅ Processed ${furnitureItems.length} furniture items from delivery API`);
+      return result;
     }
   } catch (error) {
     console.error('❌ Error processing delivery API response:', error);
   }
-}
 
-/**
- * Setup delivery API interceptor by injecting an in-page script (runs in page
- * context) and listening for messages forwarded via window.postMessage.
- */
-export function setupDeliveryAPIInterceptor() {
-  console.log('🔧 Setting up delivery API interceptor (in-page)...');
-
-  // Inject the in-page script only once
-  try {
-    if (!document.getElementById('packing-list-inpage-interceptor')) {
-      const script = document.createElement('script');
-      script.id = 'packing-list-inpage-interceptor';
-      script.src = chrome.runtime.getURL('inpage-api-interceptor.js');
-      script.onload = () => {
-        try { script.remove(); } catch (e) {}
-      };
-      (document.head || document.documentElement).appendChild(script);
-      console.log('🔌 Injected in-page interceptor script');
-    } else {
-      console.log('🔁 In-page interceptor already injected');
-    }
-  } catch (e) {
-    console.error('❌ Failed to inject in-page interceptor:', e);
-  }
-
-  // Listen for messages posted from the page context
-  window.addEventListener('message', (event) => {
-    // We only accept messages from the same window
-    if (!event || event.source !== window) return;
-    const msg = event.data;
-    if (!msg || msg.source !== 'packing-list-extension' || msg.type !== 'delivery-api-response') return;
-
-    // Process the payload
-    processDeliveryResponse(msg.url, msg.data);
-  });
-
-  console.log('✅ Delivery API message listener installed');
+  return null;
 }
 
 /**
@@ -101,7 +83,9 @@ function extractDeliveryId(url) {
  * @returns {Object|null} Item object with id, name, qty or null
  */
 export function findItemByName(itemName) {
-  if (!deliveryData || !deliveryData.items) {
+  const data = getDeliveryData();
+  
+  if (!data || !data.items) {
     console.warn('⚠️ No delivery data available');
     return null;
   }
@@ -109,7 +93,7 @@ export function findItemByName(itemName) {
   const cleanName = (name) => name.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
   const searchName = cleanName(itemName);
 
-  const match = deliveryData.items.find(item => cleanName(item.name) === searchName);
+  const match = data.items.find(item => cleanName(item.name) === searchName);
 
   if (match) {
     console.log(`✅ Found item in delivery data: "${itemName}" -> ID: ${match.id}`);

@@ -1,10 +1,10 @@
 /**
  * Main Content Script
- * Coordinates the packing list injection and print restoration
+ * Runs at document_idle to inject packing lists into the page
  */
 
-import { getPackingListData, findPackingListByName } from './storage-utils.js';
-import { setupDeliveryAPIInterceptor, getDeliveryData, findItemByName } from './api-interceptor.js';
+import { getPackingListData } from './storage-utils.js';
+import { getDeliveryData, findItemByName } from './api-interceptor.js';
 
 import { 
   waitForFurnitureGrid, 
@@ -17,21 +17,87 @@ import {
 let mountedComponents = new Set();
 let expectedComponentCount = 0;
 let printAlreadyTriggered = false;
+let printWasRequested = false;
+
+/**
+ * Wait for delivery data to be cached (with timeout)
+ * @param {number} timeout - Maximum time to wait in milliseconds
+ * @returns {Promise<Object|null>} Delivery data or null if timeout
+ */
+async function waitForDeliveryData(timeout = 10000) {
+  const startTime = Date.now();
+
+  // First, check if data is already available
+  const existingData = getDeliveryData();
+  if (existingData) {
+    console.log('✅ Delivery data already available!');
+    return existingData;
+  }
+
+  console.log('⏳ Waiting for delivery data...');
+
+  // Wait for either:
+  // 1. Custom event from early content script
+  // 2. Polling finds the data
+  // 3. Timeout
+  return new Promise((resolve) => {
+    let resolved = false;
+
+    // Listen for custom event
+    const eventListener = (event) => {
+      if (!resolved) {
+        resolved = true;
+        console.log('✅ Delivery data received via event!');
+        clearInterval(pollInterval);
+        clearTimeout(timeoutHandle);
+        resolve(getDeliveryData());
+      }
+    };
+
+    window.addEventListener('packinglist-delivery-data-ready', eventListener, { once: true });
+
+    // Also poll as backup
+    const pollInterval = setInterval(() => {
+      const data = getDeliveryData();
+      if (data && !resolved) {
+        resolved = true;
+        console.log('✅ Delivery data received via polling!');
+        window.removeEventListener('packinglist-delivery-data-ready', eventListener);
+        clearTimeout(timeoutHandle);
+        clearInterval(pollInterval);
+        resolve(data);
+      }
+    }, 200);
+
+    // Timeout
+    const timeoutHandle = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        console.warn('⏰ Timeout waiting for delivery data');
+        window.removeEventListener('packinglist-delivery-data-ready', eventListener);
+        clearInterval(pollInterval);
+        resolve(null);
+      }
+    }, timeout);
+  });
+}
 
 /**
  * Main initialization function
  */
 async function init() {
-  console.log('🚀 Packing list extension initializing...');
+  console.log('🚀 Main content script initializing...');
 
-  // Setup API interceptor FIRST
-  setupDeliveryAPIInterceptor();
-
-  // Check if print was already called (Bug 9/Bug 2 mitigation)
-  const printPending = window._printWasCalled;
-  if (printPending) {
-    console.log('⚠️ Print was already called, will trigger after components load');
-  }
+  // Listen for print intercept messages from page context
+  window.addEventListener('message', (event) => {
+    if (!event || event.source !== window) return;
+    const msg = event.data;
+    
+    if (msg && msg.source === 'packing-list-extension' && msg.type === 'print-intercepted') {
+      console.log('📨 Print was intercepted by page context');
+      printWasRequested = true;
+    }
+  });
 
   // Wait for DOM to be ready
   await waitForFurnitureGrid();
@@ -45,8 +111,14 @@ async function init() {
     return;
   }
 
-  // Cache data in window for components (Bug 1 mitigation)
-  window._packingListCache = packingListData;
+  // Wait for delivery data to be available (with timeout)
+  const deliveryData = await waitForDeliveryData(10000); // Wait up to 10 seconds
+
+  if (!deliveryData) {
+    console.log('⚠️ No delivery data received after waiting. Cannot match items.');
+    restorePrintIfNeeded();
+    return;
+  }
 
   // Find furniture rows in the DOM
   const rows = getRowsUnderTargetHeading();
@@ -89,12 +161,12 @@ async function init() {
       row,
       itemName,
       itemId: packingList.id,
-      packingList: packingList.items,
+      packingList: packingList.boxes,
       uniqueKey: `${packingList.id}-${index}`
     });
   });
 
-  // Log matching summary (Bug 7 mitigation)
+  // Log matching summary
   console.log(`📊 Matching Summary:
     - Total furniture rows: ${rows.length}
     - Rows with packing list data: ${matchedItems.length}
@@ -176,31 +248,17 @@ function handleComponentReady(uniqueKey) {
 
 /**
  * Check conditions and trigger print if appropriate
- * Implements Bug 2, Bug 5 mitigation
  */
 function checkAndTriggerPrint() {
-  // Already triggered? (Bug 5)
+  // Already triggered?
   if (printAlreadyTriggered) {
     console.log('⚠️ Print already triggered, skipping');
     return;
   }
 
   // Was print requested?
-  if (!window._printWasCalled) {
+  if (!printWasRequested) {
     console.log('ℹ️ Print was not requested by page, user can print manually');
-    restorePrintFunction();
-    return;
-  }
-
-  // Verify components still exist in DOM (Bug 2)
-  const allComponentsInDOM = Array.from(mountedComponents).every(() => {
-    // Simple check - if we got here, components should be in DOM
-    // More sophisticated check could verify actual DOM presence
-    return true;
-  });
-
-  if (!allComponentsInDOM) {
-    console.warn('⚠️ Some components not in DOM, skipping print');
     return;
   }
 
@@ -209,28 +267,25 @@ function checkAndTriggerPrint() {
   
   console.log('🖨️ Triggering print with packing lists...');
   
-  setTimeout(() => {
-    window._originalPrint();
-  }, 100); // Small delay to ensure everything is painted
-}
-
-/**
- * Restore print function without triggering
- */
-function restorePrintFunction() {
-  window.print = window._originalPrint;
-  console.log('✅ Print function restored (no auto-trigger)');
+  // Post message to page context to trigger print
+  window.postMessage({
+    source: 'packing-list-extension',
+    type: 'trigger-print'
+  }, '*');
 }
 
 /**
  * Restore print if needed when no components to mount
  */
 function restorePrintIfNeeded() {
-  if (window._printWasCalled) {
+  if (printWasRequested) {
     console.log('🖨️ Print was requested but no packing lists to show, printing anyway');
-    window._originalPrint();
-  } else {
-    restorePrintFunction();
+    
+    // Trigger print via page context
+    window.postMessage({
+      source: 'packing-list-extension',
+      type: 'trigger-print'
+    }, '*');
   }
 }
 
