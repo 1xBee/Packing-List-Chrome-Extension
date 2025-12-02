@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Packing List Extension</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <h1>📦 Packing Lists</h1>
+    </header>
+
+    <main class="popup-content">
+      <div class="status-section">
+        <h2>Status</h2>
+        <div id="status" class="status-info">
+          <p class="loading">Checking...</p>
+        </div>
+      </div>
+
+      <div class="actions-section">
+        <button id="refreshBtn" class="btn btn-primary">
+          <span class="btn-icon">🔄</span>
+          Refresh Packing List Data
+        </button>
+      </div>
+
+      <div id="message" class="message" style="display: none;"></div>
+
+      <footer class="popup-footer">
+        <p class="help-text">
+          Click refresh to update packing list data.<br>
+          Reload delivery pages to see changes.
+        </p>
+      </footer>
+    </main>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Packing List Extension",
+  "version": "1.0.0",
+  "description": "Display packing lists for furniture items on delivery pages",
+  "permissions": [
+    "storage",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "https://cm.chasunamallny.com/*",
+    "https://*.supabase.co/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://cm.chasunamallny.com/Deliveries/*/Invoice*"],
+      "js": ["print-override.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://cm.chasunamallny.com/Deliveries/*/Invoice*"],
+      "js": ["react.min.js", "react-dom.min.js", "api-interceptor.js", "packing-list-component.js", "content-main.js"],
+      "css": ["packing-list.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Packing List Extension"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["inpage-api-interceptor.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "icons": {
+  }
+}

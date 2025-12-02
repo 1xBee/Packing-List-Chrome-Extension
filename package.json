@@ -1,0 +1,27 @@
+{
+  "name": "packing-list-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension to display packing lists on delivery pages",
+  "scripts": {
+    "build": "node build-extension.js",
+    "watch": "node build-extension.js --watch",
+    "clean": "rm -rf dist packing-list-extension.zip"
+  },
+  "keywords": [
+    "chrome-extension",
+    "packing-list",
+    "delivery"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+    "devDependencies": {
+    "@types/chrome": "^0.0.254",
+    "esbuild": "^0.19.8",
+    "archiver": "^6.0.1",
+    "dotenv": "^16.3.1"
+    }
+}
