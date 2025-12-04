@@ -14,14 +14,10 @@
   ],
   "author": "",
   "license": "MIT",
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
-  },
-    "devDependencies": {
+  "devDependencies": {
     "@types/chrome": "^0.0.254",
     "esbuild": "^0.19.8",
     "archiver": "^6.0.1",
     "dotenv": "^16.3.1"
-    }
+  }
 }

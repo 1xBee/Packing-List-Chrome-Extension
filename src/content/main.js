@@ -5,6 +5,8 @@
 
 import { getPackingListData } from './storage-utils.js';
 import { getDeliveryData, findItemByName } from './api-interceptor.js';
+import { initializeFilter } from './item-filter.js';
+import { createPackingListComponent } from './packing-list-component.js';
 
 import { 
   waitForFurnitureGrid, 
@@ -111,6 +113,9 @@ async function init() {
     return;
   }
 
+  // Initialize the filter with all items
+  initializeFilter(packingListData.items);
+
   // Wait for delivery data to be available (with timeout)
   const deliveryData = await waitForDeliveryData(10000); // Wait up to 10 seconds
 
@@ -159,8 +164,11 @@ async function init() {
     // Found a match!
     matchedItems.push({
       row,
+      collection: packingList.collection,
       itemName,
+      itemNameOnPakingList: packingList.name,
       itemId: packingList.id,
+      itemQty: deliveryItem.qty, // From delivery API
       packingList: packingList.boxes,
       uniqueKey: `${packingList.id}-${index}`
     });
@@ -182,18 +190,18 @@ async function init() {
   // Set expected count for completion tracking
   expectedComponentCount = matchedItems.length;
 
-  // Mount React components
+  // Mount components
   matchedItems.forEach((item) => {
     mountPackingListComponent(item);
   });
 }
 
 /**
- * Mount a packing list React component
- * @param {Object} item - Item data with row, name, id, packing list, and unique key
+ * Mount a packing list component
+ * @param {Object} item - Item data with row, name, id, qty, packing list, and unique key
  */
 function mountPackingListComponent(item) {
-  const { row, itemName, itemId, packingList, uniqueKey } = item;
+  const { row, collection, itemName, itemNameOnPakingList, itemId, itemQty, packingList, uniqueKey } = item;
 
   // Get target cell (second td)
   const targetCell = getTargetCellForPackingList(row);
@@ -203,31 +211,22 @@ function mountPackingListComponent(item) {
     return;
   }
 
-  // Create a container div to append to the cell
-  const containerDiv = document.createElement('div');
-  containerDiv.classList.add('packing-list-wrapper');
-  
-  // Append to the end of the cell (don't replace existing content)
-  targetCell.appendChild(containerDiv);
+  // Create component
+  const component = createPackingListComponent({
+    collection,
+    itemName,
+    itemNameOnPakingList,
+    itemId,
+    itemQty,
+    packingList,
+    uniqueKey,
+    onReady: handleComponentReady
+  });
 
-  // Create React root in the container div and render component
-  try {
-    const root = ReactDOM.createRoot(containerDiv);
-    
-    root.render(
-      React.createElement(window.PackingListComponent, {
-        itemName,
-        itemId,
-        packingList,
-        uniqueKey,
-        onReady: handleComponentReady
-      })
-    );
+  // Append to the end of the cell
+  targetCell.appendChild(component);
 
-    console.log(`✅ Mounted packing list for "${itemName}" (${uniqueKey})`);
-  } catch (error) {
-    console.error('❌ Error mounting component:', error);
-  }
+  console.log(`✅ Mounted packing list for "${itemName}" (${uniqueKey})`);
 }
 
 /**

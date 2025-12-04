@@ -22,7 +22,12 @@
     },
     {
       "matches": ["https://cm.chasunamallny.com/Deliveries/*/Invoice*"],
-      "js": ["react.min.js", "react-dom.min.js", "api-interceptor.js", "packing-list-component.js", "content-main.js"],
+      "js": [
+        "api-interceptor.js",
+        "item-filter.js",
+        "packing-list-component.js",
+        "content-main.js"
+      ],
       "css": ["packing-list.css"],
       "run_at": "document_idle"
     }

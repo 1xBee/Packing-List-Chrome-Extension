@@ -48,13 +48,6 @@ async function build() {
       outfile: 'dist/print-override.js',
     });
 
-    // Build main content script (runs at document_idle)
-    await esbuild.build({
-      ...buildConfig,
-      entryPoints: ['src/content/main.js'],
-      outfile: 'dist/content-main.js',
-    });
-
     // Build API interceptor helper (for content script)
     await esbuild.build({
       ...buildConfig,
@@ -67,6 +60,27 @@ async function build() {
       ...buildConfig,
       entryPoints: ['src/content/inpage-api-interceptor.js'],
       outfile: 'dist/inpage-api-interceptor.js',
+    });
+
+    // Build item filter
+    await esbuild.build({
+      ...buildConfig,
+      entryPoints: ['src/content/item-filter.js'],
+      outfile: 'dist/item-filter.js',
+    });
+
+    // Build packing list component (vanilla JS)
+    await esbuild.build({
+      ...buildConfig,
+      entryPoints: ['src/content/packing-list-component.js'],
+      outfile: 'dist/packing-list-component.js',
+    });
+
+    // Build main content script (runs at document_idle)
+    await esbuild.build({
+      ...buildConfig,
+      entryPoints: ['src/content/main.js'],
+      outfile: 'dist/content-main.js',
     });
 
     // Build background service worker
@@ -86,16 +100,6 @@ async function build() {
       outfile: 'dist/popup.js',
     });
 
-    // Build React component
-    await esbuild.build({
-      ...buildConfig,
-      entryPoints: ['src/components/PackingList.jsx'],
-      outfile: 'dist/packing-list-component.js',
-      jsxFactory: 'React.createElement',
-      jsxFragment: 'React.Fragment',
-      external: ['react', 'react-dom'],
-    });
-
     // Copy static files
     const staticFiles = [
       { from: 'src/manifest.json', to: 'dist/manifest.json' },
@@ -109,17 +113,6 @@ async function build() {
         fs.copyFileSync(from, to);
       }
     });
-
-    // Copy React dependencies (from node_modules)
-    const reactPath = 'node_modules/react/umd/react.production.min.js';
-    const reactDomPath = 'node_modules/react-dom/umd/react-dom.production.min.js';
-    
-    if (fs.existsSync(reactPath)) {
-      fs.copyFileSync(reactPath, 'dist/react.min.js');
-    }
-    if (fs.existsSync(reactDomPath)) {
-      fs.copyFileSync(reactDomPath, 'dist/react-dom.min.js');
-    }
 
     console.log('✅ Build complete!');
 
